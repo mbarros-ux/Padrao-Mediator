@@ -1,107 +1,143 @@
-# Padrão Template Method - Pipeline de Auditoria de Segurança
+# Padrão Mediator - Hub de Coordenação de Sensores de Segurança
 
-Implementação do padrão de projeto **Template Method** (Comportamental) em Java. O projeto demonstra como definir o esqueleto (macro) de um algoritmo em uma classe abstrata, delegando a implementação de passos específicos para as subclasses, permitindo que elas redefinam certas etapas sem alterar a estrutura geral do algoritmo.
+[![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.java.net/)
+[![JUnit](https://img.shields.io/badge/JUnit-5-blue.svg)](https://junit.org/junit5/)
 
-##  Descrição
+Implementação do padrão de projeto **Mediator** (Comportamental) em Java. O projeto demonstra como encapsular a forma como um conjunto de objetos interage, promovendo baixo acoplamento ao impedir que os objetos se refiram explicitamente uns aos outros.
 
-### O Problema
-Em um SOC (Security Operations Center), diferentes tipos de auditoria de segurança (ex: Auditoria de Rede Interna vs. Auditoria de Aplicação Web) compartilham o mesmo fluxo macro de execução:
-1. Coletar dados do alvo.
-2. Analisar vulnerabilidades específicas.
-3. Gerar um relatório padronizado.
+---
 
-Implementar esse fluxo duplicando o código em cada classe de auditoria viola o princípio **DRY (Don't Repeat Yourself)**. Por outro lado, usar um único método gigante com `if/else` para cada tipo de auditoria viola o **Princípio Aberto/Fechado (OCP)** e a **Responsabilidade Única (SRP)**.
+## Descrição e Intenção
+
+**Definição (GoF):** Definir um objeto que encapsula como um conjunto de objetos interage. O Mediator promove o acoplamento fraco ao evitar que os objetos se refiram explicitamente uns aos outros, permitindo que você varie suas interações independentemente.
+
+### O Problema (A "Teia de Aranha")
+Em um sistema de segurança física, dispositivos como Sensores de Movimento, Câmeras e Alarmes precisam cooperar. Se o Sensor detectar uma intrusão, ele deve acionar a Câmera e o Alarme. 
+Se cada dispositivo se comunicar diretamente com os outros, cria-se um acoplamento many-to-many (teia de aranha). Adicionar um novo dispositivo (ex: `SensorDeFumaca`) exigiria modificar o código de **todos** os dispositivos existentes para que eles saibam como interagir com o novo componente, violando o Princípio Aberto/Fechado (OCP).
 
 ### A Solução
-O padrão Template Method inverte o controle (Princípio de Hollywood: *"Não nos ligue, nós ligaremos para você"*). A classe abstrata `AuditoriaDeSeguranca` define o algoritmo final (o *template*) como `final`, garantindo que a ordem dos passos nunca seja alterada pelas subclasses. As subclasses apenas implementam os passos abstratos específicos do seu domínio.
+O padrão Mediator introduz um objeto central, o `HubDeSeguranca` (Mediador), que encapsula toda a lógica de interação. Os dispositivos (Colegas) não se conhecem; eles apenas reportam eventos ao Mediador. Cabe ao Mediador decidir quem deve ser notificado e em que ordem.
+
+---
 
 ## Estrutura do Projeto
 
 ```bash
 src/
 ├── main/
-│   └── padroescomportamentais/templatemethod/
-│       ├── AuditoriaDeSeguranca.java      ⁦(Classe Abstrata / Template)⁩
-│       ├── AuditoriaRedeInterna.java      ⁦(ConcreteClass A)⁩
-│       └── AuditoriaAplicacaoWeb.java     ⁦(ConcreteClass B)⁩
+│   └── padroescomportamentais/mediator/
+│       ├── Mediator.java                (Interface do Mediador)
+│       ├── HubDeSeguranca.java          (Mediador Concreto)
+│       ├── ColegaSeguranca.java         (Classe Abstrata do Colega)
+│       ├── SensorMovimento.java         (Colega Concreto A)
+│       ├── Camera.java                  (Colega Concreto B)
+│       └── Alarme.java                  (Colega Concreto C)
 │
 └── test/
-└── padroescomportamentais/templatemethod/
-└── AuditoriaDeSegurancaTest.java  ⁦(Casos de teste)⁩
+    └── padroescomportamentais/mediator/
+        └── HubDeSegurancaTest.java      (Casos de teste)
 ```
 
 ## Diagrama de Classes
-
-O diagrama abaixo ilustra a relação de herança e a proteção do método template.
+O diagrama abaixo ilustra a topologia em "estrela", onde todas as comunicações passam pelo Mediador central, eliminando as dependências diretas entre os colegas.
 
 ```mermaid
 classDiagram
-    class AuditoriaDeSeguranca {
+    class Mediator {
+        <<interface>>
+        +notificar(remetente: ColegaSeguranca, evento: String) void
+    }
+
+    class HubDeSeguranca {
+        -sensor: SensorMovimento
+        -camera: Camera
+        -alarme: Alarme
+        +notificar(remetente: ColegaSeguranca, evento: String) void
+        +ativarProtocoloDeEmergencia() void
+    }
+
+    class ColegaSeguranca {
         <<abstract>>
-        +executarAuditoria() void
-        #coletarDados() void
-        #analisarVulnerabilidades() void
-        #gerarRelatorio() void
-        #hookPersonalizacao() void
+        #mediador: Mediator
+        +ColegaSeguranca(mediador: Mediator)
     }
 
-    class AuditoriaRedeInterna {
-        #coletarDados() void
-        #analisarVulnerabilidades() void
-        #gerarRelatorio() void
+    class SensorMovimento {
+        +detectarIntrusao() void
+        +detectarFalsoPositivo() void
     }
 
-    class AuditoriaAplicacaoWeb {
-        #coletarDados() void
-        #analisarVulnerabilidades() void
-        #gerarRelatorio() void
-        #hookPersonalizacao() void
+    class Camera {
+        +iniciarGravacao() void
+        +pararGravacao() void
     }
 
-    AuditoriaDeSeguranca <|-- AuditoriaRedeInterna : estende
-    AuditoriaDeSeguranca <|-- AuditoriaAplicacaoWeb : estende
+    class Alarme {
+        +dispararSirene() void
+        +desativarSirene() void
+    }
+
+    Mediator <|.. HubDeSeguranca : implementa
+    ColegaSeguranca <|-- SensorMovimento : estende
+    ColegaSeguranca <|-- Camera : estende
+    ColegaSeguranca <|-- Alarme : estende
+    
+    HubDeSeguranca o-- SensorMovimento : gerencia
+    HubDeSeguranca o-- Camera : gerencia
+    HubDeSeguranca o-- Alarme : gerencia
+    
+    ColegaSeguranca --> Mediator : reporta eventos
 ```
 
-## Análise Crítica: Vantagens e Pontos Cegos
+### Análise Crítica: Vantagens e Pontos Cegos
 
-### Vantagens (Fatos)
-*   **Reutilização de Código:** A lógica comum (o esqueleto do algoritmo) fica centralizada na superclasse, eliminando duplicação.
-*   **Inversão de Controle (Princípio de Hollywood):** A superclasse chama os métodos das subclasses, e não o contrário. Isso garante que o fluxo macro seja respeitado.
-*   **Controle de Extensão:** O uso da palavra-chave `final` no método template impede que subclasses modifiquem a ordem ou a lógica central do algoritmo.
+É fundamental diferenciar os benefícios teóricos dos riscos práticos de implementação.
 
-### Pontos Cegos e Contrapontos (Onde o padrão exige cuidado)
-1.  **Acoplamento por Herança (Rigidez):**
-    *   *Fato:* O Template Method depende de herança. Mudanças no método template na superclasse impactam automaticamente todas as subclasses.
-    *   *Contraponto:* Em hierarquias muito profundas, isso pode causar efeitos colaterais difíceis de rastrear. Se a variação for muito complexa, composições (como o padrão **Strategy**) podem ser mais flexíveis.
-2.  **Métodos "Hook" (Ganchos) Mal Utilizados:**
-    *   *Fato:* O padrão permite métodos `hook` (com implementação vazia na superclasse) para que subclasses insiram comportamentos opcionais.
-    *   *Contraponto:* O abuso de hooks torna o fluxo do algoritmo imprevisível e difícil de depurar, pois a superclasse não tem garantia de que o hook foi sobrescrito ou qual será seu efeito colateral.
+#### Vantagens (Fatos)
+* **Princípio da Responsabilidade Única (SRP):** A lógica complexa de interação entre os componentes é extraída dos colegas e centralizada em uma única classe (o Mediador).
+* **Princípio Aberto/Fechado (OCP):** É possível introduzir novos colegas (ex: `SensorDeFumaca`) sem modificar as classes dos colegas existentes. Apenas o Mediador precisa ser atualizado para lidar com o novo evento.
+* **Desacoplamento:** Os colegas não dependem uns dos outros. Eles podem ser reutilizados em outros contextos mais facilmente.
 
-## Diferença Crucial: Template Method vs. Strategy
+#### Pontos Cegos e Contrapontos (Onde o padrão exige cuidado)
+1. **O Problema do "Objeto Deus" (God Object):**
+   * **Fato:** Ao centralizar toda a lógica de comunicação, o Mediador tende a crescer descontroladamente, acumulando muitas responsabilidades condicionais (`if/else` ou `switch` baseados no evento).
+   * **Contraponto:** Se o sistema for muito complexo, o `HubDeSeguranca` pode se tornar uma classe gigante e difícil de manter.
+   * **Solução:** Quebrar o Mediador em múltiplos mediadores menores (por domínio) ou usar o padrão **Observer** internamente dentro do Mediador para distribuir as notificações de forma mais limpa.
+2. **Lógica de Interação Oculta:**
+   * **Fato:** Ao olhar apenas para a classe `SensorMovimento`, é impossível saber o que acontece quando ele detecta uma intrusão.
+   * **Contraponto:** A lógica está "escondida" dentro do Mediador. Isso pode dificultar o *debugging* e o rastreamento do fluxo de execução para desenvolvedores novos no projeto, exigindo logs robustos.
 
-Esta é a confusão mais comum em provas e revisões de código, pois ambos lidam com a variação de algoritmos.
+---
 
-| Característica | Padrão Template Method | Padrão Strategy |
+### Diferença Crucial: Mediator vs. Observer
+
+Esta é a confusão mais comum em provas e revisões de código, pois ambos lidam com comunicação indireta entre objetos.
+
+| Característica | Padrão Mediator | Padrão Observer |
 | :--- | :--- | :--- |
-| **Mecanismo** | **Herança** (Subclasses sobrescrevem passos). | **Composição** (Objeto Strategy é injetado). |
-| **Escopo da Variação** | Varia **partes** de um algoritmo maior. | Substitui o **algoritmo inteiro**. |
-| **Controle do Fluxo** | A Superclasse controla o fluxo (método `final`). | O Cliente controla qual algoritmo usar. |
-| **Tempo de Mudança** | Definido em tempo de **compilação** (herança fixa). | Pode ser trocado em tempo de **execução**. |
-| **Exemplo** | Fluxo de auditoria (coletar -> analisar -> reportar). | Escolher entre Criptografia AES ou RSA. |
+| **Topologia** | **Estrela** (Todos falam com o centro, o centro coordena). | **Pub/Sub** (Um fala para muitos). |
+| **Direção da Comunicação** | **Multi-direcional** (Os colegas enviam e recebem via Mediador). | **Unidirecional** (Sujeito → Observadores). |
+| **Intenção** | Gerenciar interações complexas e regras de negócio entre colegas que não se conhecem. | Notificar interessados sobre mudanças de estado de um objeto. |
+| **Exemplo** | O Hub decide que Sensor → liga Câmera → dispara Alarme. | A Central de Ameaças avisa todos os Analistas inscritos. |
 
-##  Testes
+> **Nota:** Conforme o catálogo GoF (Capítulo 11.6 da apostila), o padrão Mediator é frequentemente implementado usando o padrão Observer. O Mediador atua como o "Sujeito" e os Colegas atuam como "Observadores" para receber as ordens de volta.
+
+---
+
+### Testes
 
 O projeto contém testes unitários (JUnit 5) que validam:
-*   O método template (`executarAuditoria`) executa os passos na ordem correta.
-*   As subclasses fornecem as implementações específicas sem alterar o fluxo macro.
-*   O método template é `final` e não pode ser sobrescrito (validado via reflexão ou tentativa de compilação).
-*   Os métodos *hook* opcionais são executados apenas quando sobrescritos.
+* O `SensorMovimento` não conhece a `Camera` nem o `Alarme` (baixo acoplamento comprovado via Reflection).
+* Ao detectar uma intrusão, o Mediador orquestra a ativação da Câmera e do Alarme na ordem correta.
+* A adição de um novo colega não quebra a comunicação dos colegas existentes.
 
-## Tecnologias Utilizadas
+---
+
+### Tecnologias Utilizadas
 
 | Tecnologia | Versão | Finalidade no Projeto |
 | :--- | :--- | :--- |
 | **Java** | 21 | Linguagem de programação principal |
 | **Maven** | 3.9+ | Gerenciamento de dependências e automação de build |
 | **JUnit 5** | 5.9.x | Framework para execução dos testes unitários |
-| **Draw.io** | Web | Criação e exportação dos diagramas UML |
+| **Draw.io / Mermaid** | Web | Criação e renderização dos diagramas UML |
